@@ -1,0 +1,133 @@
+---
+title: "Natural Language Processing"
+author: "Joel Chavez Gomez"
+date: "10/2/2022"
+output: html_document
+---
+```{r setup, include = FALSE, cache = TRUE}
+library(quanteda); library(tm)
+library(quanteda.corpora); library(readtext)
+library(quanteda.textmodels); library(quanteda.dictionaries)
+library(spacyr); library(stringr)
+```
+
+## Introduction
+**Natural language processing (NLP)** is a subfield of linguistics, computer science,
+and artificial intelligence concerned with the interactions between computers
+and human language, in particular how to program computers to process and analyze
+large amounts of natural language data. The goal is a computer capable of
+"understanding" the contents of documents, including the contextual nuances of
+the language within them. The technology can then accurately extract information
+and insights contained in the documents as well as categorize and organize the
+documents themselves.
+
+For this project we will be using mainly the *tm* and *Quanteda* Packages.
+```{r install-packages, eval=FALSE}
+install.packages(c(
+        "quanteda", 
+        "quanteda.textmodels", 
+        "quanteda.textplot", 
+        "readtext", 
+        "spacyr", 
+        "tm"
+))
+devtools::install_github("quanteda/quanteda.corpora")
+devtools::install_github("kbenoit/quanteda.dictionaries")
+```
+## Getting the data
+
+### Downloading the data
+```{r download-data, cache = TRUE}
+url <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+wd <- getwd()
+if(file.exists("./Assets/Dataset/CapstoneDataset.zip") != TRUE){
+  download.file(url, destfile = paste(wd, 
+                                      "Assets/Dataset/CapstoneDataset.zip", 
+                                      sep = "/"))
+  unzip("./Assets/Dataset/CapstoneDataset.zip", 
+        exdir = "./Assets/Dataset")
+  message("File succesfully downloaded and unzipped")
+} else {
+  message("File has already been downloaded and unzipped")
+}
+
+
+if(file.exists("./Assets/Dataset/CapstoneDataset.zip") == TRUE){
+        rm(url)
+}
+```
+## Reading the data
+```{r file-paths, cache = TRUE}
+dirPaths <- list.files(path = paste(wd, 
+                                    "Assets/Dataset/final",
+                                    sep = "/"), 
+                      include.dirs = TRUE, 
+                      full.names = TRUE)
+
+us_files <- list.files(dirPaths[2], full.names = TRUE)
+```
+
+### Profanity words list
+```{r bad-words, cache = TRUE}
+badwords <- readLines("Assets/Files/badwordsRegEx.txt", encoding = "UTF-8")
+profanity <- VectorSource(badwords)
+```
+
+## Using the tm package
+
+### Creating a corpus
+```{r echo=TRUE, cache = TRUE}
+Corpus <- VCorpus(DirSource(dirPaths[2], encoding = "UTF-8"))
+```
+
+
+### Dealing with profanity words
+```{r }
+#TODO: optimize this function
+
+profanityVector <- as.character(read.table("Assets/Files/badwordsRegEx.txt", sep = ""))
+
+removeProfanity <- content_transformer(function(x) {
+                for(i in 1:length(profanity)){
+                        x <-  gsub(profanity[i],"", x)
+                       }
+                return(x)
+                })
+
+reorder.stoplist <- c(grep("[']", stopwords('english'), value = TRUE), 
+                      stopwords('english')[!(1:length(stopwords('english')) %in% grep("[']", stopwords('english')))])
+
+```
+### Preprocessing
+We will keep the original corpus and create a copy which will be used for preprocessing
+and further analysis
+```{r prepro, echo = TRUE, cache = TRUE}
+en_corpus <- tm_map(Corpus, content_transformer(tolower)) 
+en_corpus <- tm_map(en_corpus, removeWords, reorder.stoplist)
+en_corpus <- tm_map(en_corpus, removeWords, profanityVector)
+en_corpus <- tm_map(en_corpus, removePunctuation)
+en_corpus <- tm_map(en_corpus, removeNumbers)
+en_corpus <- tm_map(en_corpus, content_transformer(
+  function(x){gsub("(f|ht)tp(s?)://(.*)[.][a-z]+", "", x)}
+))
+en_corpus <- tm_map(en_corpus, content_transformer(
+  function(x){gsub("@[^\\s]+", "", x)}
+)) 
+en_corpus <- tm_map(en_corpus, content_transformer(
+  function(x){gsub("[[:punct:]]", "", x)}
+))
+en_corpus <- tm_map(en_corpus, stripWhitespace)
+
+en_corpusStemmed <- tm_map(en_corpus, stemDocument)
+```
+#
+```{r dtm, echo = TRUE}
+dtm <- DocumentTermMatrix(en_corpus)
+dtmStemmed <- DocumentTermMatrix(en_corpusStemmed)
+freqTerms <- findFreqTerms(dtm, 50)
+freqTermsStemmed <- findFreqTerms(dtmStemmed, 50)
+```
+
+```{r echo = TRUE}
+
+```
