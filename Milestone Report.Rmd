@@ -1,0 +1,295 @@
+---
+title: "Data Science Capstone: Milestone Report"
+author: "Joel Chavez Gomez"
+date: "14/2/2022"
+output:
+        html_document:
+                toc: true
+                toc_float: true
+---
+<style>
+body {
+text-align: justify}
+title {
+text-align: center
+}
+image {
+
+</style>
+
+## Introduction
+**Natural language processing (NLP)** is a subfield of linguistics, computer science,
+and artificial intelligence concerned with the interactions between computers
+and human language, in particular how to program computers to process and analyze
+large amounts of natural language data. The goal is a computer capable of
+"understanding" the contents of documents, including the contextual nuances of
+the language within them. The technology can then accurately extract information
+and insights contained in the documents as well as categorize and organize the
+documents themselves.
+
+<center>
+![Figure 1: Natural Language Processing](Assets/Images/NLP/Slide1.PNG)
+</center>
+  
+In this project, we will create a Shiny Web App that predicts the following word 
+from a set of words as input. In order to accomplish this, there are a series of 
+steps we must take:
+
+1. Getting the source for our training dataset  
+2. Loading the training data set into our workspace  
+2. Preprocess the training dataset  
+3. Select the features we need from the training dataset  
+4. Build a predictor model  
+5. Build the Shiny Web App  
+
+### Getting and Loading the Data
+The data set was provided from the [coursera Data Science Capstone](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip).
+The file consists of a zipfile containing a directory called "final" and four subdirectories, 
+one for a different language (German, English, Finnish and Russian). For this 
+project we will only be using the English dataset.
+
+The packages `tm` was used to load the text files into our workspace as a corpus.
+A corpus is a collection of text, which is unstructured data. For our project we
+will need to convert the corpus from this unstructured format into a structured
+format, in order to analyze the text and build our predictor model.
+
+The text for our corpus is taken from **Plain Text Document** (*.txt*) files that 
+contain text from 3 different sources:  
+
+1. Blogs  
+2. News  
+3. Twitter  
+
+Since the text are from web sources, they will contain special characters and
+links that we will need to remove (*"@", "http://", "www..."*). This will be done during
+the preprocessing steps.
+
+### Preprocessing
+Preprocessing is an important part of Natural Language Processing. Full texts are 
+preprocessed to improve computational performance and accuracy of text analysis
+techniques. Below is a diagram of the most common preprocessing techniques.
+
+<center>
+![Preprocessing](Assets/Images/NLP/Slide2.PNG)
+</center>
+  
+The Preprocessing for our project consisted of lowercasing, removing symbols and
+numbers, profanity filtering and removing stopwords. Then the corpus was tokenized
+and a Document Term Matrix was made. The preprocessing was made on a script,
+which can be sourced to make RDS files for the corpus, the tokenized corpus and the Document Term Matrix
+(DTM).
+
+## Exploratory Data Analysis
+Below is a table with the main characteristics of every text document from the
+corpus.
+```{r eda, echo = FALSE, cache = TRUE, fig.align='center', message=FALSE, warning = FALSE}
+library(R.utils); library(kableExtra); library(tidyverse)
+library(readtext)
+textFiles <- list.files("Assets/Dataset/final/en_US", 
+                        full.names = TRUE)
+documents <- list.files("Assets/Dataset/final/en_US", 
+                        full.names = FALSE)
+lines <- c(
+        countLines(textFiles[1]), 
+        countLines(textFiles[2]), 
+        countLines(textFiles[3])
+)
+fileSize <- c(
+        round(file.size(textFiles[1])/1048576),
+        round(file.size(textFiles[2])/1048576),
+        round(file.size(textFiles[3])/1048576)
+)
+chars <- c(
+        nchar(readtext(textFiles[1])), 
+        nchar(readtext(textFiles[2])), 
+        nchar(readtext(textFiles[3])) 
+)
+nchars <- chars[c(2, 4, 6)]
+filesInfo <- data.frame(documents, lines, nchars, fileSize)
+cnames <- c("Documents", "Number of lines",
+            "Number of characters", "File size (Mb)")
+colnames(filesInfo) <- cnames
+filesInfo %>% kbl() %>%
+        kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+It is important to note that these files are large in size, so it is important to 
+adequately manage the objects in memory, avoiding redundancy, constantly removing
+objects from the environment that are not longer necessary and by saving important
+objects on disk (like the preprocessed corpus, tokens and DTM).
+
+```{r sampling, echo = FALSE, cache = TRUE}
+corpus <- readRDS("Assets/RDS/preprocessedCorpus-tm.rds")
+corpus <- corpus(corpus)
+blogsCorpus <- corpus(corpus[1])
+newsCorpus <- corpus(corpus[2])
+twitterCorpus <- corpus(corpus[3])
+saveRDS(blogsCorpus, "Assets/RDS/blogsCorpus.rds")
+saveRDS(newsCorpus, "Assets/RDS/newsCorpus.rds")
+saveRDS(twitterCorpus, "Assets/RDS/twitterCorpus.rds")
+rm(corpus, newsCorpus, twitterCorpus)
+```
+
+```{r ngrams, echo = TRUE, cache = TRUE}
+library(tictoc)
+tic("Total")
+tic("Blogs Total")
+tic("Unigrams")
+blogsUnigrams <- tokens(blogsCorpus, what = "fastestword", 
+                         remove_punct = TRUE, 
+                         remove_symbols = TRUE, 
+                         remove_url = TRUE, 
+                         remove_separators = TRUE, 
+                         split_hyphens = TRUE)
+saveRDS(blogsUnigrams, "Assets/RDS/ngrams/blogsUnigrams.rds")
+if(file.exists("Assets/RDS/ngrams/blogsUnigrams.rds") == TRUE){
+  message("blogsUnigrams.rds saved correctly")
+  rm(blogsCorpus)
+} else {
+  message("error while saving blogsUnigrams.rds")
+}
+
+toc()
+tic("Bigrams")
+blogsBigrams <- tokens_ngrams(blogsUnigrams, n = 2, concatenator = " ")
+saveRDS(blogsBigrams, "Assets/RDS/ngrams/blogsBigrams.rds")
+if(file.exists("Assets/RDS/ngrams/blogsBigrams.rds") == TRUE){
+  message("blogsBigrams.rds saved correctly")
+  rm(blogsBigrams)
+} else {
+  message("error while saving blogsBigrams.rds")
+}
+
+toc()
+tic("Trigrams")
+blogsTrigrams <- tokens_ngrams(blogsUnigrams, n = 3, concatenator = " ")
+saveRDS(blogsTrigrams, "Assets/RDS/ngrams/blogsTrigrams.rds")
+if(file.exists("Assets/RDS/ngrams/blogsTrigrams.rds") == TRUE){
+  message("blogsTrigrams.rds saved correctly")
+  rm(blogsTrigrams)
+  rm(blogsUnigrams)
+} else {
+  message("error while saving blogsTrigrams.rds")
+}
+
+toc()
+toc()
+tic("News Total")
+tic("Unigrams")
+newsCorpus <- readRDS("Assets/RDS/newsCorpus.rds")
+newsUnigrams <- tokens(newsCorpus, what = "fastestword", 
+                         remove_punct = TRUE, 
+                         remove_symbols = TRUE, 
+                         remove_url = TRUE, 
+                         remove_separators = TRUE, 
+                         split_hyphens = TRUE)
+saveRDS(newsUnigrams, "Assets/RDS/ngrams/newsUnigrams.rds")
+if(file.exists("Assets/RDS/ngrams/newsUnigrams.rds") == TRUE){
+  message("newsUnigrams.rds saved correctly")
+  rm(newsCorpus)
+} else {
+  message("error while saving newsUnigrams.rds")
+}
+
+toc()
+tic("Bigrams")
+newsBigrams <- tokens_ngrams(newsUnigrams, n = 2, concatenator = " ")
+saveRDS(newsBigrams, "Assets/RDS/ngrams/newsBigrams.rds")
+if(file.exists("Assets/RDS/ngrams/newsBigrams.rds") == TRUE){
+  message("newsBigrams.rds saved correctly")
+  rm(newsBigrams)
+} else {
+  message("error while saving newsBigrams.rds")
+}
+
+
+toc()
+tic("trigrams")
+newsTrigrams <- tokens_ngrams(newsUnigrams, n = 3, concatenator = " ")
+saveRDS(newsTrigrams, "Assets/RDS/ngrams/newsTrigrams.rds")
+if(file.exists("Assets/RDS/ngrams/newsTrigrams.rds") == TRUE){
+  message("newsTrigrams.rds saved correctly")
+  rm(newsTrigrams)
+} else {
+  message("error while saving newsTrigrams.rds")
+}
+
+rm(newsUnigrams)
+toc()
+toc()
+
+tic("Twitter total")
+tic("Unigrams")
+twitterCorpus <- readRDS("Assets/RDS/twitterCorpus.rds")
+twitterUnigrams <- tokens(twitterCorpus, what = "fastestword", 
+                         remove_punct = TRUE, 
+                         remove_symbols = TRUE, 
+                         remove_url = TRUE, 
+                         remove_separators = TRUE, 
+                         split_hyphens = TRUE)
+saveRDS(twitterUnigrams, "Assets/RDS/ngrams/twitterUnigrams.rds")
+if(file.exists("Assets/RDS/ngrams/twitterUnigrams.rds") == TRUE){
+  message("twitterUnigrams.rds saved correctly")
+  rm(twitterCorpus)
+} else {
+  message("error while saving twitterUnigrams.rds")
+}
+
+toc()
+tic("Bigrams")
+twitterBigrams <- tokens_ngrams(twitterUnigrams, n = 2, concatenator = " ")
+saveRDS(twitterBigrams, "Assets/RDS/ngrams/twitterBigrams.rds")
+if(file.exists("Assets/RDS/ngrams/twitterBigrams.rds") == TRUE){
+  message("twitterBigrams.rds saved correctly")
+  rm(twitterBigrams)
+} else {
+  message("error while saving twitterUnigrams.rds")
+}
+toc()
+tic("Trigrams")
+twitterTrigrams <- tokens_ngrams(twitterUnigrams, n = 3, concatenator = " ")
+saveRDS(twitterTrigrams, "Assets/RDS/ngrams/twitterTrigrams.rds")
+if(file.exists("Assets/RDS/ngrams/twitterTrigrams.rds") == TRUE){
+  message("twitterTrigrams.rds saved correctly")
+  rm(twitterTrigrams)
+} else {
+  message("error while saving twitterUnigrams.rds")
+}
+rm(twitterUnigrams)
+toc()
+toc()
+toc()
+```
+
+```{r join-toks, echo = TRUE, cache = TRUE}
+#TODO: remove ALL stopwords!!! modify preprocessing?
+blogsUnigrams <- readRDS("Assets/RDS/ngrams/blogsUnigrams.rds")
+twitterUnigrams <- readRDS("Assets/RDS/ngrams/twitterUnigrams.rds")
+newsUnigrams <- readRDS("Assets/RDS/ngrams/newsUnigrams.rds")
+unigramTokens <- tokens(blogsUnigrams) + 
+  tokens(newsUnigrams) + 
+  tokens(twitterUnigrams)
+rm(blogsUnigrams, newsUnigrams, twitterUnigrams)
+unigrams_dfm <- dfm(blogsTokens)
+rm(unigramTokens)
+unigrams_dfm <- dfm_select(unigrams_dfm, "im", selection = "remove",
+                  case_insensitive = TRUE)
+saveRDS(unigrams_dfm, "Assets/RDS/dfm/unigrams_dfm.rds")
+rm(unigrams_dfm)
+
+blogsBigrams <- readRDS("Assets/RDS/ngrams/blogsBigrams.rds")
+newsBigrams <- readRDS("Assets/RDS/ngrams/newsBigrams.rds")
+twitterBigrams <- readRDS("Assets/RDS/ngrams/twitterBigrams.rds")
+bigramTokens <- tokens(blogsBigrams) + 
+  tokens(newsBigrams) + 
+  tokens(twitterBigrams)
+rm(blogsBigrams, newsBigrams, twitterBigrams)
+bigrams_dfm <- dfm(bigramTokens)
+#bigrams_dfm <- dfm_select(bigrams_dfm, "im", selection = "remove", case_insensitive = TRUE)
+saveRDS("Assets/RDS/dfm/bigrams_dfm.rds")
+
+
+blogsTrigrams <- readRDS("Assets/RDS/ngrams/blogsTrigrams.rds")
+newsTrigrams <- readRDS("Assets/RDS/ngrams/newsTrigrams.rds")
+TwitterTrigrams <- readRDS("Assets/RDS/ngrams/twitterTrigrams.rds")
+```
