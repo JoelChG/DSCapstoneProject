@@ -119,6 +119,8 @@ objects from the environment that are not longer necessary and by saving importa
 objects on disk (like the preprocessed corpus, tokens and DTM).
 
 ```{r sampling, echo = FALSE, cache = TRUE}
+tic("Total")
+tic("Splitting corpus")
 corpus <- readRDS("Assets/RDS/preprocessedCorpus-tm.rds")
 corpus <- corpus(corpus)
 blogsCorpus <- corpus(corpus[1])
@@ -128,11 +130,13 @@ saveRDS(blogsCorpus, "Assets/RDS/blogsCorpus.rds")
 saveRDS(newsCorpus, "Assets/RDS/newsCorpus.rds")
 saveRDS(twitterCorpus, "Assets/RDS/twitterCorpus.rds")
 rm(corpus, newsCorpus, twitterCorpus)
+toc()
 ```
 
 ```{r ngrams, echo = TRUE, cache = TRUE}
+rm(chars, cnames, documents, fileSize, lines, nchars, textFiles, filesInfo)
 library(tictoc)
-tic("Total")
+tic("Ngrams Total")
 tic("Blogs Total")
 tic("Unigrams")
 blogsUnigrams <- tokens(blogsCorpus, what = "fastestword", 
@@ -262,7 +266,7 @@ toc()
 ```
 
 ```{r join-toks, echo = TRUE, cache = TRUE}
-#TODO: remove ALL stopwords!!! modify preprocessing?
+tic("Processing 2/2")
 blogsUnigrams <- readRDS("Assets/RDS/ngrams/blogsUnigrams.rds")
 twitterUnigrams <- readRDS("Assets/RDS/ngrams/twitterUnigrams.rds")
 newsUnigrams <- readRDS("Assets/RDS/ngrams/newsUnigrams.rds")
@@ -270,7 +274,7 @@ unigramTokens <- tokens(blogsUnigrams) +
   tokens(newsUnigrams) + 
   tokens(twitterUnigrams)
 rm(blogsUnigrams, newsUnigrams, twitterUnigrams)
-unigrams_dfm <- dfm(blogsTokens)
+unigrams_dfm <- dfm(unigramTokens)
 rm(unigramTokens)
 unigrams_dfm <- dfm_select(unigrams_dfm, "im", selection = "remove",
                   case_insensitive = TRUE)
@@ -285,11 +289,17 @@ bigramTokens <- tokens(blogsBigrams) +
   tokens(twitterBigrams)
 rm(blogsBigrams, newsBigrams, twitterBigrams)
 bigrams_dfm <- dfm(bigramTokens)
-#bigrams_dfm <- dfm_select(bigrams_dfm, "im", selection = "remove", case_insensitive = TRUE)
-saveRDS("Assets/RDS/dfm/bigrams_dfm.rds")
-
+saveRDS(bigrams_dfm, "Assets/RDS/dfm/bigrams_dfm.rds")
+rm(bigrams_dfm, bigramTokens)
 
 blogsTrigrams <- readRDS("Assets/RDS/ngrams/blogsTrigrams.rds")
 newsTrigrams <- readRDS("Assets/RDS/ngrams/newsTrigrams.rds")
-TwitterTrigrams <- readRDS("Assets/RDS/ngrams/twitterTrigrams.rds")
+twitterTrigrams <- readRDS("Assets/RDS/ngrams/twitterTrigrams.rds")
+trigramTokens <- tokens(blogsTrigrams) + tokens(newsTrigrams) +
+  tokens(twitterTrigrams)
+rm(blogsTrigrams, newsTrigrams, twitterTrigrams)
+trigrams_dfm <- dfm(trigramTokens)
+saveRDS(trigrams_dfm, "Assets/RDS/dfm/trigrams_dfm.rds")
+toc()
+toc()
 ```
