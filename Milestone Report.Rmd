@@ -17,6 +17,15 @@ image {
 
 </style>
 
+```{r setup, cache = TRUE}
+library(tm); library(quanteda)
+library(tidyverse); library(quanteda.textmodels)
+library(stringi); library(tictoc)
+```
+
+```{r source-script, eval=FALSE, include=FALSE}
+source("Assets/Scripts/GetPreprocessedCorpus.R")
+```
 ## Introduction
 **Natural language processing (NLP)** is a subfield of linguistics, computer science,
 and artificial intelligence concerned with the interactions between computers
@@ -28,7 +37,7 @@ and insights contained in the documents as well as categorize and organize the
 documents themselves.
 
 <center>
-![Figure 1: Natural Language Processing](Assets/Images/NLP/Slide1.PNG)
+![Figure 1: Natural Language Processing](Assets/Images/nlp/Slide1.PNG)
 </center>
   
 In this project, we will create a Shiny Web App that predicts the following word 
@@ -38,9 +47,9 @@ steps we must take:
 1. Getting the source for our training dataset  
 2. Loading the training data set into our workspace  
 2. Preprocess the training dataset  
-3. Select the features we need from the training dataset  
+3. Process the data set into tokens and ngrams  
 4. Build a predictor model  
-5. Build the Shiny Web App  
+5. Build a Shiny Web App  
 
 ### Getting and Loading the Data
 The data set was provided from the [coursera Data Science Capstone](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip).
@@ -61,30 +70,49 @@ contain text from 3 different sources:
 3. Twitter  
 
 Since the text are from web sources, they will contain special characters and
-links that we will need to remove (*"@", "http://", "www..."*). This will be done during
-the preprocessing steps.
+links that we will need to remove (*"@", "http://...", "www..."*). This will be 
+done during the preprocessing steps.
 
 ### Preprocessing
 Preprocessing is an important part of Natural Language Processing. Full texts are 
 preprocessed to improve computational performance and accuracy of text analysis
 techniques. Below is a diagram of the most common preprocessing techniques.
-
-<center>
-![Preprocessing](Assets/Images/NLP/Slide2.PNG)
-</center>
   
+<center>
+![Preprocessing](Assets/Images/nlp/Slide2.PNG)
+</center>
+    
 The Preprocessing for our project consisted of lowercasing, removing symbols and
 numbers, profanity filtering and removing stopwords. Then the corpus was tokenized
-and a Document Term Matrix was made. The preprocessing was made on a script,
-which can be sourced to make RDS files for the corpus, the tokenized corpus and the Document Term Matrix
-(DTM).
+and a Document Term Matrix was made. The preprocessing was scripted,
+and when sourced it creates RDS files for the objects that will be needed during
+Exploratory Data Analysis.
 
+### Processing
+The preprocessed corpus was loaded and splitted into three corpus objects for
+more efficient processing, one for each source (blogs, news, twitter). The corpora
+was then tokenized and ngrams were made (unigrams, bigrams, trigrams).
+  
+<center>
+![Processing](Assets/Images/nlp/Slide3.PNG)
+</center>
+
+Then the unigrams, bigrams and trigrams tokens were joined into Data Feature 
+Matrices.
+
+<center>
+![Preprocessing](Assets/Images/nlp/Slide4.PNG)
+</center>
+  
 ## Exploratory Data Analysis
+Once the data was loaded, preprocessed and processed into structured data, an 
+exploratory data analysis was conducted.
+
 Below is a table with the main characteristics of every text document from the
 corpus.
 ```{r eda, echo = FALSE, cache = TRUE, fig.align='center', message=FALSE, warning = FALSE}
 library(R.utils); library(kableExtra); library(tidyverse)
-library(readtext)
+library(readtext); library(tictoc); library(quanteda)
 textFiles <- list.files("Assets/Dataset/final/en_US", 
                         full.names = TRUE)
 documents <- list.files("Assets/Dataset/final/en_US", 
@@ -113,12 +141,7 @@ filesInfo %>% kbl() %>%
         kable_styling(bootstrap_options = c("striped", "hover"))
 ```
 
-It is important to note that these files are large in size, so it is important to 
-adequately manage the objects in memory, avoiding redundancy, constantly removing
-objects from the environment that are not longer necessary and by saving important
-objects on disk (like the preprocessed corpus, tokens and DTM).
-
-```{r sampling, echo = FALSE, cache = TRUE}
+```{r sampling, echo = FALSE, cache = TRUE, include=FALSE}
 tic("Total")
 tic("Splitting corpus")
 corpus <- readRDS("Assets/RDS/preprocessedCorpus-tm.rds")
@@ -133,18 +156,23 @@ rm(corpus, newsCorpus, twitterCorpus)
 toc()
 ```
 
-```{r ngrams, echo = TRUE, cache = TRUE}
+```{r ngrams, echo = FALSE, include = FALSE, cache = TRUE}
 rm(chars, cnames, documents, fileSize, lines, nchars, textFiles, filesInfo)
-library(tictoc)
 tic("Ngrams Total")
 tic("Blogs Total")
 tic("Unigrams")
+
+stopwords_remove <- function(x){
+  tokens_select(x, c("im", "dont", "cant", "shouldnt", 
+                         "wouldnt", "mr", "dr", "st"), selection = "remove")
+}
 blogsUnigrams <- tokens(blogsCorpus, what = "fastestword", 
                          remove_punct = TRUE, 
                          remove_symbols = TRUE, 
                          remove_url = TRUE, 
                          remove_separators = TRUE, 
                          split_hyphens = TRUE)
+blogsUnigrams <- stopwords_remove(blogsUnigrams)
 saveRDS(blogsUnigrams, "Assets/RDS/ngrams/blogsUnigrams.rds")
 if(file.exists("Assets/RDS/ngrams/blogsUnigrams.rds") == TRUE){
   message("blogsUnigrams.rds saved correctly")
@@ -187,6 +215,7 @@ newsUnigrams <- tokens(newsCorpus, what = "fastestword",
                          remove_url = TRUE, 
                          remove_separators = TRUE, 
                          split_hyphens = TRUE)
+newsUnigrams <- stopwords_remove(newsUnigrams)
 saveRDS(newsUnigrams, "Assets/RDS/ngrams/newsUnigrams.rds")
 if(file.exists("Assets/RDS/ngrams/newsUnigrams.rds") == TRUE){
   message("newsUnigrams.rds saved correctly")
@@ -231,6 +260,7 @@ twitterUnigrams <- tokens(twitterCorpus, what = "fastestword",
                          remove_url = TRUE, 
                          remove_separators = TRUE, 
                          split_hyphens = TRUE)
+twitterUnigrams <- stopwords_remove(twitterUnigrams)
 saveRDS(twitterUnigrams, "Assets/RDS/ngrams/twitterUnigrams.rds")
 if(file.exists("Assets/RDS/ngrams/twitterUnigrams.rds") == TRUE){
   message("twitterUnigrams.rds saved correctly")
@@ -259,13 +289,13 @@ if(file.exists("Assets/RDS/ngrams/twitterTrigrams.rds") == TRUE){
 } else {
   message("error while saving twitterUnigrams.rds")
 }
-rm(twitterUnigrams)
+rm(twitterUnigrams, stopwords_remove)
 toc()
 toc()
 toc()
 ```
 
-```{r join-toks, echo = TRUE, cache = TRUE}
+```{r join-toks, echo = FALSE, cache = TRUE, include=FALSE}
 tic("Processing 2/2")
 blogsUnigrams <- readRDS("Assets/RDS/ngrams/blogsUnigrams.rds")
 twitterUnigrams <- readRDS("Assets/RDS/ngrams/twitterUnigrams.rds")
@@ -276,8 +306,7 @@ unigramTokens <- tokens(blogsUnigrams) +
 rm(blogsUnigrams, newsUnigrams, twitterUnigrams)
 unigrams_dfm <- dfm(unigramTokens)
 rm(unigramTokens)
-unigrams_dfm <- dfm_select(unigrams_dfm, "im", selection = "remove",
-                  case_insensitive = TRUE)
+
 saveRDS(unigrams_dfm, "Assets/RDS/dfm/unigrams_dfm.rds")
 rm(unigrams_dfm)
 
@@ -299,7 +328,82 @@ trigramTokens <- tokens(blogsTrigrams) + tokens(newsTrigrams) +
   tokens(twitterTrigrams)
 rm(blogsTrigrams, newsTrigrams, twitterTrigrams)
 trigrams_dfm <- dfm(trigramTokens)
+rm(trigramTokens)
 saveRDS(trigrams_dfm, "Assets/RDS/dfm/trigrams_dfm.rds")
+rm(trigrams_dfm)
 toc()
+toc()
+```
+
+The main features of the corpus are shown in the graphics below.
+
+```{r main-features, echo = TRUE, cache=TRUE, fig.align='center'}
+tic("Analysis")
+unigrams_dfm <- readRDS("Assets/RDS/dfm/unigrams_dfm.rds")
+topUnigrams <- topfeatures(unigrams_dfm)
+topUnigrams <- data.frame(topUnigrams)
+Unigram <- rownames(topUnigrams)
+topUnigrams <- transmute(topUnigrams, Unigram = Unigram, Count = topUnigrams)
+
+cols <- c("#d00000", "#ffba08", "#229631", "#8fe388", "#1b998b", 
+          "#3185fc", "#5d2e8c", "#196bde", "#ff7b9c", "#ff9b85")
+
+g <- ggplot(data = topUnigrams, aes(x = reorder(factor(Unigram), -Count), 
+                                    y = Count))
+g + geom_col(aes(fill = Unigram)) + 
+  scale_fill_manual(values = cols) +
+  labs(title = "Top 10 Unigrams", x = "Unigram tokens") + 
+  theme_minimal()
+rm(Unigram, topUnigrams, unigrams_dfm)
+```
+```{r main-features2, echo = TRUE, cache=TRUE, fig.align='center'}
+bigrams_dfm <- readRDS("Assets/RDS/dfm/bigrams_dfm.rds")
+bigrams_dfm <- dfm_select(bigrams_dfm, pattern = c("cant wait", "dont know",
+                                                   "im going", "dont"), 
+                          selection = "remove")
+topBigrams <- topfeatures(bigrams_dfm)
+topBigrams <- data.frame(topBigrams)
+Bigram <- rownames(topBigrams)
+topBigrams <- transmute(topBigrams, Bigram = 
+                          Bigram, Count = topBigrams)
+
+cols <- c("#d00000", "#ffba08", "#229631", "#8fe388", "#1b998b", 
+          "#3185fc", "#5d2e8c", "#196bde", "#ff7b9c", "#ff9b85")
+
+h <- ggplot(data = topBigrams, aes(x = reorder(factor(Bigram), -Count), 
+                                    y = Count))
+h + geom_col(aes(fill = Bigram)) + 
+  scale_fill_manual(values = cols) +
+  labs(title = "Top 10 Bigrams", x = "Bigram tokens") + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+rm(Bigram, topBigrams, bigrams_dfm)
+```
+
+```{r main-features3, echo = TRUE, cache=TRUE, fig.align='center'}
+trigrams_dfm <- readRDS("Assets/RDS/dfm/trigrams_dfm.rds")
+trigrams_dfm <- dfm_select(trigrams_dfm, pattern = c("cant wait see",
+                                                   "dont even know",
+                                                   "feel like im", 
+                                                   "im pretty sure", 
+                                                   "im", "dont", "cant"), 
+                          selection = "remove")
+topTrigrams <- topfeatures(trigrams_dfm)
+topTrigrams <- data.frame(topTrigrams)
+Trigram <- rownames(topTrigrams)
+topTrigrams <- transmute(topTrigrams, Trigram = 
+                          Trigram, Count = topTrigrams)
+
+cols <- c("#d00000", "#ffba08", "#229631", "#8fe388", "#1b998b", 
+          "#3185fc", "#5d2e8c", "#196bde", "#ff7b9c", "#ff9b85")
+
+i <- ggplot(data = topTrigrams, aes(x = reorder(factor(Trigram), -Count), 
+                                    y = Count))
+i + geom_col(aes(fill = Trigram)) + 
+  scale_fill_manual(values = cols) +
+  labs(title = "Top 10 Trigrams", x = "Trigram tokens") + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+rm(Trigram, topTrigrams, trigrams_dfm)
 toc()
 ```
